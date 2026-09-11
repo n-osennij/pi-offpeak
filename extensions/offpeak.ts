@@ -467,7 +467,7 @@ export default function (pi: ExtensionAPI) {
     getArgumentCompletions: (prefix) => {
       const all = ["on", "off", "status", "reload", "resume", "check"];
       const items = all.filter((c) => c.startsWith(prefix.trim().toLowerCase()));
-      return items.map((label) => ({ label }));
+      return items.map((label) => ({ label, value: label }));
     },
     handler: async (args, ctx) => {
       const [subRaw, ...rest] = args.trim().split(/\s+/).filter(Boolean);

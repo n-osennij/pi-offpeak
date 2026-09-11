@@ -159,6 +159,18 @@ describe("wiring: allow-all project", () => {
   });
 });
 
+describe("wiring: command completions match pi's contract", () => {
+  const { commands } = makeHarness();
+
+  it("every item carries a string value (pi calls value.startsWith)", () => {
+    for (const prefix of ["", "r", "xyz"]) {
+      for (const item of commands.offpeak.getArgumentCompletions(prefix)) {
+        assert.equal(typeof item.value, "string");
+      }
+    }
+  });
+});
+
 describe("wiring: fresh install with no config files", () => {
   // Hermetic only when the machine has no global pi-offpeak.json;
   // otherwise the global file legitimately takes part in the merge.
