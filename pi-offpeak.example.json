@@ -1,0 +1,23 @@
+{
+  "$comment": "pi-offpeak config. Goes to <agentDir>/pi-offpeak.json (global) and/or .pi/pi-offpeak.json (project, wins on conflicts). Top level = DEFAULT profile (fallback). profiles[0..n]: first matching profile wins; omitted fields inherit the top level; `allow` REPLACES the default windows.",
+  "timezone": "UTC",
+  "enabled": true,
+  "allow": [
+    { "days": ["mon", "tue", "wed", "thu", "fri"], "from": "00:00", "to": "01:00" },
+    { "days": ["mon", "tue", "wed", "thu", "fri"], "from": "04:00", "to": "06:00" },
+    { "days": ["mon", "tue", "wed", "thu", "fri"], "from": "10:00", "to": "24:00" },
+    { "days": ["sat", "sun"], "from": "00:00", "to": "24:00" }
+  ],
+  "models": ["*"],
+  "blockMessage": "Off-peak guard: model requests are blocked now (peak rates). Resumes {until}.",
+  "abortInFlight": true,
+  "resumeAfterPeak": false,
+  "resumeMessage": "Off-peak rates are back in effect. Continue the interrupted task where you left off.",
+  "profiles": [
+    {
+      "name": "free-tier",
+      "models": ["openrouter/*:free", "*mini*", "*haiku*"],
+      "allow": [{ "days": ["daily"], "from": "00:00", "to": "24:00" }]
+    }
+  ]
+}

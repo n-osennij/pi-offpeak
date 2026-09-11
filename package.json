@@ -1,0 +1,24 @@
+{
+  "name": "pi-offpeak",
+  "version": "0.1.0",
+  "description": "Off-peak guard for pi agent: blocks model requests outside allowed time windows (e.g. DeepSeek day/night rates)",
+  "keywords": [
+    "pi-package"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/offpeak.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test test/schedule.test.mjs test/wiring.test.mjs"
+  }
+}
