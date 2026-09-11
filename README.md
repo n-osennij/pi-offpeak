@@ -22,12 +22,8 @@ the next transition (or `offpeak OFF` / `offpeak bypass (model)`).
 ## Install
 
 ```sh
-# from this folder
-pi install C:/Users/n-osennij/Desktop/pi-offpeak
-# or: pi install <git-url>   after you push it
+pi install npm:pi-offpeak
 ```
-
-(`pi/` in the name + `keywords: ["pi-package"]` makes it discoverable.)
 
 What install does (and doesn't):
 

@@ -1,6 +1,6 @@
 {
   "name": "pi-offpeak",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Off-peak guard for pi agent: blocks model requests outside allowed time windows (e.g. DeepSeek day/night rates)",
   "keywords": [
     "pi-package"
