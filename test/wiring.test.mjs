@@ -83,6 +83,18 @@ describe("wiring: always-blocked project", () => {
     await handlers.session_shutdown({}, ctx);
   });
 
+  it("peak input is always acknowledged (never silently swallowed)", async () => {
+    const { ctx, handlers, notes } = makeHarness();
+    ctx.cwd = makeProject(BLOCK_ALL);
+    await handlers.session_start({}, ctx); // starts blocked: notifiedPeak already true
+    notes.length = 0;
+    assert.equal((await handlers.input({ text: "hello" }, ctx)).action, "handled");
+    assert.equal((await handlers.input({ text: "again" }, ctx)).action, "handled");
+    const ack = notes.filter((n) => n.message.includes("Prompt queued"));
+    assert.equal(ack.length, 2);
+    await handlers.session_shutdown({}, ctx);
+  });
+
   it("input: normal text is swallowed, /offpeak passes through", async () => {
     await handlers.session_start({}, ctx);
     const r1 = await handlers.input({ text: "hello" }, ctx);

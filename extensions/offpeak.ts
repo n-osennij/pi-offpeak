@@ -431,10 +431,10 @@ export default function (pi: ExtensionAPI) {
       return { action: "continue" as const };
     }
     queueInput(event.text);
-    if (!notifiedPeak) {
-      notifiedPeak = true;
-      say(ctx, blockText(ctx), "warning");
-    }
+    // Always acknowledge swallowed input: the user pressed Enter and must see
+    // feedback. (notifiedPeak dedup stays for automatic watchdog/turn_start
+    // notices only — user-initiated input is never spam.)
+    say(ctx, `${blockText(ctx)} Prompt queued — /offpeak resume replays it when off-peak starts.`, "warning");
     return { action: "handled" as const };
   });
 
