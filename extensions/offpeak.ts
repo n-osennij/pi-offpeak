@@ -12,9 +12,11 @@
  *     continue peak-interrupted work via pi.sendUserMessage; always
  *     available on demand as `/offpeak resume`.
  *
- * Default semantics are stop-and-drop: peak blocks and aborts, and the
- * session then sits idle until nudged. Pause-and-continue (auto-resume +
- * replay of peak-time prompts) is opt-in via `resumeAfterPeak: true`.
+ * Default semantics are pause-and-continue: peak blocks and aborts,
+ * swallowed prompts queue up, and work auto-resumes when off-peak starts
+ * (`resumeAfterPeak`, on by default; set false for stop-and-drop).
+ * While blocked, a persistent widget below the editor counts down to
+ * off-peak like a rate-limit banner.
  *
  * Config resolution: project `.pi/pi-offpeak.json` overlays global
  * `<agentDir>/pi-offpeak.json`; missing pieces fall back to built-in
@@ -215,6 +217,35 @@ export default function (pi: ExtensionAPI) {
     }
   };
 
+  /** Persistent peak banner below the editor (rate-limit style): countdown
+   *  plus queue state. Refreshed on the watchdog heartbeat, so the timer
+   *  visibly moves. Cleared whenever nothing is blocked. Best-effort:
+   *  widgets don't exist in every pi mode. */
+  const refreshWidget = (ctx: ExtensionContext) => {
+    try {
+      if (!isBlockedNow(ctx)) {
+        ctx.ui.setWidget(STATUS_KEY, undefined);
+        return;
+      }
+      // Blocked: a profile is in effect (checked via isBlockedNow).
+      const p = effectiveProfile(ctx)!;
+      const queued =
+        pendingInputs.length > 0
+          ? `${pendingInputs.length} queued`
+          : peakInterrupted
+            ? "interrupted work"
+            : "prompts queue here";
+      const resume = p.resumeAfterPeak === true ? "auto-resume on" : "replay with /offpeak resume";
+      ctx.ui.setWidget(
+        STATUS_KEY,
+        [`⛔ Peak rates — off-peak ${describeResume(new Date(), p.rules, p.timezone)}`, `${queued} · ${resume}`],
+        { placement: "belowEditor" },
+      );
+    } catch {
+      // ignore — the status bar + notify carry the signal without widgets
+    }
+  };
+
   const say = (ctx: ExtensionContext, message: string, type: "info" | "warning" | "error" = "warning") => {
     try {
       ctx.ui.notify(message, type);
@@ -280,7 +311,6 @@ export default function (pi: ExtensionAPI) {
     if (lastAllowed !== undefined && allowed !== lastAllowed) {
       // Window transition.
       notifiedPeak = false;
-      refreshStatus(c);
       if (!allowed && ap) {
         say(c, `Peak window started (${clockInZone(now, ap.timezone)} ${ap.timezone}). Model requests are blocked.`, "warning");
       } else if (allowed && ap) {
@@ -290,8 +320,6 @@ export default function (pi: ExtensionAPI) {
           say(c, `pi-offpeak: resumed peak-interrupted work${queued > 0 ? ` (${queued} queued prompt${queued === 1 ? "" : "s"} replayed)` : ""}.`, "info");
         }
       }
-    } else if (lastAllowed === undefined) {
-      refreshStatus(c);
     }
     lastAllowed = allowed;
 
@@ -313,8 +341,10 @@ export default function (pi: ExtensionAPI) {
             : "It will stay stopped until you nudge it (/offpeak resume).";
         say(c, `Peak window started — in-flight run aborted. ${tail}`, "warning");
       }
-      refreshStatus(c);
     }
+    // Heartbeat: keeps the status bar and the peak-widget countdowns moving.
+    refreshStatus(c);
+    refreshWidget(c);
   };
 
   watchdogTickFn = watchdogTick;
@@ -390,9 +420,10 @@ export default function (pi: ExtensionAPI) {
       );
     }
     refreshStatus(ctx);
+    refreshWidget(ctx);
     startTimer(ctx);
     if (enabled && isBlockedNow(ctx)) {
-      say(ctx, `${blockText(ctx)} Guard is ON — send /offpeak off to bypass (peak rates apply).`, "warning");
+      say(ctx, `${blockText(ctx)} Guard is ON — send /offpeak off to bypass (peak rates apply).`, "error");
       notifiedPeak = true;
     }
   });
@@ -407,6 +438,11 @@ export default function (pi: ExtensionAPI) {
       } catch {
         // ignore
       }
+      try {
+        c.ui.setWidget(STATUS_KEY, undefined);
+      } catch {
+        // ignore
+      }
     }
   });
 
@@ -416,6 +452,7 @@ export default function (pi: ExtensionAPI) {
     const p = activeProfile(ctx);
     lastAllowed = p ? isAllowedAt(new Date(), p.rules, p.timezone) : true;
     refreshStatus(ctx);
+    refreshWidget(ctx);
   });
 
   // ---- enforcement --------------------------------------------------------
@@ -434,7 +471,13 @@ export default function (pi: ExtensionAPI) {
     // Always acknowledge swallowed input: the user pressed Enter and must see
     // feedback. (notifiedPeak dedup stays for automatic watchdog/turn_start
     // notices only — user-initiated input is never spam.)
-    say(ctx, `${blockText(ctx)} Prompt queued — /offpeak resume replays it when off-peak starts.`, "warning");
+    const ap = effectiveProfile(ctx);
+    const tail =
+      ap?.resumeAfterPeak === true
+        ? "It will auto-resume when off-peak starts."
+        : "Replay it with /offpeak resume when off-peak starts.";
+    say(ctx, `${blockText(ctx)} Prompt queued. ${tail}`, "error");
+    refreshWidget(ctx);
     return { action: "handled" as const };
   });
 
@@ -477,6 +520,7 @@ export default function (pi: ExtensionAPI) {
         enabled = true;
         notifiedPeak = false;
         refreshStatus(ctx);
+        refreshWidget(ctx);
         say(ctx, "pi-offpeak guard ON.", "info");
       } else if (sub === "off" || sub === "disable" || sub === "stop") {
         enabled = false;
@@ -487,11 +531,13 @@ export default function (pi: ExtensionAPI) {
           // ignore
         }
         say(ctx, "pi-offpeak guard OFF — peak-rate requests are allowed. Careful with billing.", "warning");
+        refreshWidget(ctx); // guard off = nothing blocked = banner clears
       } else if (sub === "reload") {
         loaded = loadConfig(ctx.cwd);
         enabled = loaded.config.enabled !== false;
         notifiedPeak = false;
         refreshStatus(ctx);
+        refreshWidget(ctx);
         if (lastCtx) {
           // Re-arm watchdog against the fresh schedule, keeping the last
           // observation so the next tick still detects a boundary crossing.

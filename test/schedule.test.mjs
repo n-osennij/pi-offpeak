@@ -4,6 +4,7 @@ import {
   compileProfiles,
   compileRules,
   defaultAllowRules,
+  defaultConfig,
   describeResume,
   expandDays,
   isAllowedAt,
@@ -123,6 +124,10 @@ const BASE = {
 };
 
 describe("compileProfiles / matchProfile", () => {
+  it("built-in defaults pause-and-continue (auto-resume on)", () => {
+    assert.equal(defaultConfig().resumeAfterPeak, true);
+    assert.equal(compileProfiles({}).profiles[0].resumeAfterPeak, true);
+  });
   it("default-only config yields one fallback profile", () => {
     const { profiles, warnings } = compileProfiles(BASE);
     assert.equal(warnings.length, 0);

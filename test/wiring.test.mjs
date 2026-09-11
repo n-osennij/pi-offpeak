@@ -34,6 +34,7 @@ function makeHarness(model = { provider: "deepseek", id: "deepseek-chat" }) {
   const commands = {};
   const notes = [];
   const statuses = {};
+  const widgets = {};
   const sent = []; // pi.sendUserMessage payloads (resume turns)
   const calls = { aborts: 0 };
   const pi = {
@@ -56,6 +57,9 @@ function makeHarness(model = { provider: "deepseek", id: "deepseek-chat" }) {
       setStatus: (key, text) => {
         statuses[key] = text;
       },
+      setWidget: (key, lines, opts) => {
+        widgets[key] = { lines, opts };
+      },
     },
     isIdle: () => true,
     abort: () => {
@@ -64,7 +68,7 @@ function makeHarness(model = { provider: "deepseek", id: "deepseek-chat" }) {
     shutdown: () => {},
   };
   initOffpeak(pi);
-  return { pi, ctx, handlers, commands, notes, statuses, calls, sent };
+  return { pi, ctx, handlers, commands, notes, statuses, widgets, calls, sent };
 }
 
 function writeProjectConfig(dir, config) {
@@ -92,6 +96,35 @@ describe("wiring: always-blocked project", () => {
     assert.equal((await handlers.input({ text: "again" }, ctx)).action, "handled");
     const ack = notes.filter((n) => n.message.includes("Prompt queued"));
     assert.equal(ack.length, 2);
+    await handlers.session_shutdown({}, ctx);
+  });
+
+  it("peak shows a below-editor widget with countdown, cleared on shutdown", async () => {
+    const { ctx, handlers, widgets } = makeHarness();
+    ctx.cwd = makeProject(BLOCK_ALL); // resumeAfterPeak omitted: new default is auto
+    await handlers.session_start({}, ctx);
+    assert.equal((await handlers.input({ text: "do it later" }, ctx)).action, "handled");
+    const w = widgets.offpeak;
+    assert.equal(w.opts.placement, "belowEditor");
+    assert.match(w.lines[0], /⛔ Peak rates — off-peak /);
+    assert.match(w.lines[1], /1 queued/);
+    assert.match(w.lines[1], /auto-resume on/);
+    await handlers.session_shutdown({}, ctx);
+    assert.equal(widgets.offpeak.lines, undefined);
+  });
+
+  it("auto-resume is the default (flag omitted): queue replays on transition", async () => {
+    const { ctx, handlers, commands, sent } = makeHarness();
+    const dir = makeProject(BLOCK_ALL);
+    ctx.cwd = dir;
+    await handlers.session_start({}, ctx);
+    await handlers.input({ text: "default task" }, ctx);
+    await __offpeakTick();
+    writeProjectConfig(dir, ALLOW_ALL);
+    await commands.offpeak.handler("reload", ctx);
+    assert.equal(sent.length, 1);
+    assert.match(sent[0], /default task/);
+    assert.match(sent[0], /auto-resume/);
     await handlers.session_shutdown({}, ctx);
   });
 

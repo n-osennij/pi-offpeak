@@ -65,7 +65,7 @@ DeepSeek off-peak defaults:
   "models": ["*"],            // which models to guard: "*", "deepseek/*", "provider/id", "bare-id"
   "blockMessage": "Off-peak guard: model requests are blocked now (peak rates). Resumes {until}.",
   "abortInFlight": true,      // abort a running agent when peak starts
-  "resumeAfterPeak": false,   // true = auto-continue interrupted work when peak ends
+  "resumeAfterPeak": true,    // auto-continue interrupted work when peak ends (default true; false = stop-and-drop)
   "resumeMessage": "Off-peak rates are back in effect. Continue the interrupted task where you left off.",
   "profiles": [              // per-model schedules (optional); first match wins
     {
@@ -142,32 +142,21 @@ copy it to `~/.pi/agent/pi-offpeak.json` to start.
 
 ## Stop vs pause (resume)
 
-Default semantics are **stop-and-drop**:
+Default semantics are **pause-and-continue**:
 
-- a prompt typed during peak is swallowed (no LLM call) and, by default,
-  gone — the session then sits idle until you nudge it.
-- an aborted run does not restart itself when peak ends.
+- a prompt typed during peak is swallowed (no LLM call) and kept in a
+  bounded queue (last 10) — a persistent banner below the editor counts
+  down to off-peak, rate-limit style;
+- when peak ends, the queue replays verbatim, followed by `resumeMessage`;
+  an aborted run is continued the same way (history is intact, the model
+  picks up where the abort cut it).
 
-The status bar countdown (`⛔ peak ✓45m`) is only a display: nothing is
-deferred automatically.
+Opt out to **stop-and-drop** with `{"resumeAfterPeak": false}`: the
+session then sits idle until you nudge it, and the queue waits for a
+manual `/offpeak resume`.
 
-Opt in to **pause-and-continue** with:
-
-```jsonc
-{
-  "resumeAfterPeak": true,   // default false
-  "resumeMessage": "Off-peak rates are back in effect. Continue the interrupted task where you left off."
-}
-```
-
-Then:
-
-- swallowed peak-time prompts are kept in a bounded queue (last 10) and
-  replayed verbatim when peak ends, followed by `resumeMessage`;
-- an aborted run is continued the same way (history is intact, the model
-  picks up where the abort cut it);
-- `/offpeak resume` does the same on demand, even with
-  `resumeAfterPeak: false` (explicit intent beats the flag).
+In both modes `/offpeak resume` works on demand (explicit intent beats
+the flag).
 
 Rules: resume needs an idle session; your next off-peak message cancels
 pending auto-resume (manual takeover wins); `/offpeak off` drops the queue.
@@ -181,7 +170,6 @@ the blocked prompt; subagent children are short-lived the same way.
 ```
 /offpeak            status: state, time, next transition, config sources
 /offpeak on|off     enable / disable the guard (off = peak rates allowed, careful)
-/offpeak toggle
 /offpeak reload     re-read both config files without restarting
 /offpeak resume     continue peak-interrupted work now (replays queued prompts)
 /offpeak status

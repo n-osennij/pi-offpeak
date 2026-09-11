@@ -108,7 +108,7 @@ export function defaultConfig(): Required<
     models: ["*"],
     blockMessage: "Off-peak guard: model requests are blocked now (peak rates). Resumes {until}.",
     abortInFlight: true,
-    resumeAfterPeak: false,
+    resumeAfterPeak: true,
     resumeMessage: "Off-peak rates are back in effect. Continue the interrupted task where you left off.",
   };
 }
